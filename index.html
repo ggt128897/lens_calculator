@@ -21,16 +21,28 @@
 <h1>鏡片最小直徑計算器</h1>
 
 <!-- 資料輸入 -->
+<label>鏡片寬度（ED）（mm）
+  <input type="number" id="lensED" placeholder="例如：52">
+</label>
+
+<label>鼻橋寬度（mm）
+  <input type="number" id="bridgeWidth" placeholder="例如：18">
+</label>
+
+<label>眼位高度（mm）
+  <input type="number" id="lensHeight" placeholder="例如：36">
+</label>
+
+<label>瞳孔距離（PD）（mm）
+  <input type="number" id="pd" placeholder="例如：60">
+</label>
+
 <label>鏡框寬度（mm）
   <input type="number" id="frameWidth" placeholder="例如：140">
 </label>
 
 <label>鏡框高度（mm）
   <input type="number" id="frameHeight" placeholder="例如：45">
-</label>
-
-<label>瞳孔距離（PD）（mm）
-  <input type="number" id="pd" placeholder="例如：62">
 </label>
 
 <label>安全邊緣（mm）
@@ -51,20 +63,23 @@
 
 <script>
 function calculateMLD() {
+  const lensED = parseFloat(document.getElementById('lensED').value);
+  const bridgeWidth = parseFloat(document.getElementById('bridgeWidth').value);
+  const lensHeight = parseFloat(document.getElementById('lensHeight').value);
+  const pd = parseFloat(document.getElementById('pd').value);
   const frameWidth = parseFloat(document.getElementById('frameWidth').value);
   const frameHeight = parseFloat(document.getElementById('frameHeight').value);
-  const pd = parseFloat(document.getElementById('pd').value);
   const safetyEdge = parseFloat(document.getElementById('safetyEdge').value) || 2;
 
-  if (isNaN(frameWidth) || isNaN(frameHeight) || isNaN(pd)) {
+  if ([lensED, bridgeWidth, lensHeight, pd, frameWidth, frameHeight].some(isNaN)) {
     document.getElementById('result').innerText = "請輸入完整數據！";
     return;
   }
 
-  const gc = frameWidth / 2;
+  const gc = (lensED + bridgeWidth) / 2;
   const decentration = Math.abs((pd / 2) - gc);
   const diagonal = Math.sqrt(frameWidth ** 2 + frameHeight ** 2);
-  const ed = diagonal * 0.95; // 95% correction factor
+  const ed = diagonal * 0.95; // 假設形狀修正係數 0.95
   const mld = 2 * decentration + ed + safetyEdge;
 
   document.getElementById('result').innerText = `建議最小鏡片直徑：${mld.toFixed(2)} mm`;
