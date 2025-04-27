@@ -67,8 +67,8 @@
   <input type="number" id="lensHeight" placeholder="例如：36">
 </label>
 
-<label>鏡片總高度（B代號）（mm）
-  <input type="number" id="lensTotalHeight" placeholder="例如：48">
+<label>鏡片總高度B” （選擇性）（mm）
+  <input type="number" id="lensTotalHeightB" placeholder="例如：48">
 </label>
 
 <label>瞳孔距離（PD）（mm）
@@ -92,7 +92,7 @@
 <img id="preview" class="hidden" />
 
 <!-- 形狀選擇（卡片版＋小圖示） -->
-<h2>選擇鏡框形狀</h2>
+<h2>選擇鏡框形狀（選擇性）</h2>
 <div id="shapeSelection" class="card-container">
   <div class="card" onclick="selectShape('round')">
     <div class="icon">
@@ -158,13 +158,13 @@ function calculateMLD() {
   const lensED = parseFloat(document.getElementById('lensED').value);
   const bridgeWidth = parseFloat(document.getElementById('bridgeWidth').value);
   const lensHeight = parseFloat(document.getElementById('lensHeight').value);
-  const lensTotalHeight = parseFloat(document.getElementById('lensTotalHeight').value);
+  const lensTotalHeightB = parseFloat(document.getElementById('lensTotalHeightB').value);
   const pd = parseFloat(document.getElementById('pd').value);
   let safetyEdge = parseFloat(document.getElementById('safetyEdge').value) || 2;
 
   const correctionMode = document.getElementById('correctionMode').checked;
 
-  if ([lensED, bridgeWidth, lensHeight, lensTotalHeight, pd].some(isNaN)) {
+  if ([lensED, bridgeWidth, lensHeight, pd].some(isNaN)) {
     document.getElementById('result').innerText = "請輸入完整數據！";
     return;
   }
@@ -177,7 +177,7 @@ function calculateMLD() {
   const gc = (lensED + bridgeWidth) / 2;
   const decentration = Math.abs((pd / 2) - gc);
   
-  const verticalAdjustment = lensTotalHeight * 0.1;
+  const verticalAdjustment = lensTotalHeightB ? lensTotalHeightB * 0.1 : lensHeight * 0.1;
 
   const mld = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
 
