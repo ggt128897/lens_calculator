@@ -25,7 +25,7 @@
   <input type="number" id="lensED" placeholder="例如：52">
 </label>
 
-<label>鼻橋寬度（mm）
+<label>鼻橋寬度（DBL）（mm）
   <input type="number" id="bridgeWidth" placeholder="例如：18">
 </label>
 
@@ -35,14 +35,6 @@
 
 <label>瞳孔距離（PD）（mm）
   <input type="number" id="pd" placeholder="例如：60">
-</label>
-
-<label>鏡框寬度（mm）
-  <input type="number" id="frameWidth" placeholder="例如：140">
-</label>
-
-<label>鏡框高度（mm）
-  <input type="number" id="frameHeight" placeholder="例如：45">
 </label>
 
 <label>安全邊緣（mm）
@@ -67,20 +59,20 @@ function calculateMLD() {
   const bridgeWidth = parseFloat(document.getElementById('bridgeWidth').value);
   const lensHeight = parseFloat(document.getElementById('lensHeight').value);
   const pd = parseFloat(document.getElementById('pd').value);
-  const frameWidth = parseFloat(document.getElementById('frameWidth').value);
-  const frameHeight = parseFloat(document.getElementById('frameHeight').value);
   const safetyEdge = parseFloat(document.getElementById('safetyEdge').value) || 2;
 
-  if ([lensED, bridgeWidth, lensHeight, pd, frameWidth, frameHeight].some(isNaN)) {
+  if ([lensED, bridgeWidth, lensHeight, pd].some(isNaN)) {
     document.getElementById('result').innerText = "請輸入完整數據！";
     return;
   }
 
   const gc = (lensED + bridgeWidth) / 2;
   const decentration = Math.abs((pd / 2) - gc);
-  const diagonal = Math.sqrt(frameWidth ** 2 + frameHeight ** 2);
-  const ed = diagonal * 0.95; // 假設形狀修正係數 0.95
-  const mld = 2 * decentration + ed + safetyEdge;
+  
+  // 假設使用眼位高度來修正鏡片形狀
+  const verticalAdjustment = lensHeight * 0.1; // 假設修正因子，根據眼位高度的影響
+
+  const mld = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
 
   document.getElementById('result').innerText = `建議最小鏡片直徑：${mld.toFixed(2)} mm`;
 }
