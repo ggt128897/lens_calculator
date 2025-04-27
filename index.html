@@ -33,6 +33,10 @@
   <input type="number" id="lensHeight" placeholder="例如：36">
 </label>
 
+<label>鏡片總高度（B代號）（mm）
+  <input type="number" id="lensTotalHeight" placeholder="例如：48">
+</label>
+
 <label>瞳孔距離（PD）（mm）
   <input type="number" id="pd" placeholder="例如：60">
 </label>
@@ -58,10 +62,11 @@ function calculateMLD() {
   const lensED = parseFloat(document.getElementById('lensED').value);
   const bridgeWidth = parseFloat(document.getElementById('bridgeWidth').value);
   const lensHeight = parseFloat(document.getElementById('lensHeight').value);
+  const lensTotalHeight = parseFloat(document.getElementById('lensTotalHeight').value);
   const pd = parseFloat(document.getElementById('pd').value);
   const safetyEdge = parseFloat(document.getElementById('safetyEdge').value) || 2;
 
-  if ([lensED, bridgeWidth, lensHeight, pd].some(isNaN)) {
+  if ([lensED, bridgeWidth, lensHeight, lensTotalHeight, pd].some(isNaN)) {
     document.getElementById('result').innerText = "請輸入完整數據！";
     return;
   }
@@ -69,8 +74,8 @@ function calculateMLD() {
   const gc = (lensED + bridgeWidth) / 2;
   const decentration = Math.abs((pd / 2) - gc);
   
-  // 假設使用眼位高度來修正鏡片形狀
-  const verticalAdjustment = lensHeight * 0.1;
+  // 假設使用鏡片總高度來修正鏡片形狀
+  const verticalAdjustment = lensTotalHeight * 0.1;
 
   const mld = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
 
