@@ -7,7 +7,7 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
     h1 { text-align: center; }
-    label, input, button, select { display: block; width: 100%; margin: 10px 0; }
+    label, input, button { display: block; width: 100%; margin: 10px 0; }
     input, select { padding: 8px; }
     button { background: #007bff; color: white; border: none; padding: 10px; cursor: pointer; }
     button:hover { background: #0056b3; }
@@ -29,28 +29,26 @@
   <input type="number" id="bridgeWidth" placeholder="例如：18">
 </label>
 
-<label>鏡片總高度（B高度）（mm）
+<label>眼位高度（mm）
   <input type="number" id="lensHeight" placeholder="例如：36">
+</label>
+
+<label>鏡片總高度（B代號）（mm）
+  <input type="number" id="lensTotalHeight" placeholder="例如：48">
 </label>
 
 <label>瞳孔距離（PD）（mm）
   <input type="number" id="pd" placeholder="例如：60">
 </label>
 
-<label>眼位高度（從鏡框下緣起算）（mm）
-  <input type="number" id="ocHeight" placeholder="例如：18">
-</label>
-
 <label>安全邊緣（mm）
   <input type="number" id="safetyEdge" value="2">
 </label>
 
-<!-- 鏡框形狀選擇 -->
-<label>鏡框形狀
-  <select id="frameShape">
-    <option value="rectangle">方形/橢圓形</option>
-    <option value="round">圓形</option>
-  </select>
+<!-- 新增校正模式勾選 -->
+<label>
+  <input type="checkbox" id="correctionMode">
+  啟用校正模式（增加安全餘量）
 </label>
 
 <!-- 上傳圖片 -->
@@ -70,35 +68,58 @@ function calculateMLD() {
   const lensED = parseFloat(document.getElementById('lensED').value);
   const bridgeWidth = parseFloat(document.getElementById('bridgeWidth').value);
   const lensHeight = parseFloat(document.getElementById('lensHeight').value);
+  const lensTotalHeight = parseFloat(document.getElementById('lensTotalHeight').value);
   const pd = parseFloat(document.getElementById('pd').value);
-  const ocHeight = parseFloat(document.getElementById('ocHeight').value);
-  const safetyEdge = parseFloat(document.getElementById('safetyEdge').value) || 2;
-  const frameShape = document.getElementById('frameShape').value;
+  let safetyEdge = parseFloat(document.getElementById('safetyEdge').value) || 2;
 
-  if ([lensED, bridgeWidth, lensHeight, pd, ocHeight].some(isNaN)) {
+  const correctionMode = document.getElementById('correctionMode').checked;
+
+  if ([lensED, bridgeWidth, lensHeight, lensTotalHeight, pd].some(isNaN)) {
     document.getElementById('result').innerText = "請輸入完整數據！";
     return;
   }
 
-  const gc = (lensED + bridgeWidth) / 2;
-  const decentration = Math.abs((pd / 2) - gc);
-
-  // 上下修正：如果瞳孔不在正中間，要計算瞳位差距
-  const verticalCenter = lensHeight / 2;
-  const verticalAdjustment = Math.abs(ocHeight - verticalCenter);
-
-  // 根據形狀加強計算：圓形需要取最大長度
-  let baseDiameter = lensED;
-  if (frameShape === "round") {
-    baseDiameter = Math.max(lensED, lensHeight);
+  // 如果啟用校正模式，自動增加安全邊緣
+  if (correctionMode) {
+    safetyEdge += 1.5; // 校正模式下，增加 1.5mm 安全邊
   }
 
-  const mld = 2 * decentration + baseDiameter + 2 * verticalAdjustment + safetyEdge;
+  const gc = (lensED + bridgeWidth) / 2;
+  const decentration = Math.abs((pd / 2) - gc);
+  
+  const verticalAdjustment = lensTotalHeight * 0.1;
+
+  const mld = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
 
   document.getElementById('result').innerText = `建議最小鏡片直徑：${mld.toFixed(2)} mm`;
 
-  // 順便處理上傳圖片預覽
+  // 圖片簡易分析
   const file = document.getElementById('upload').files[0];
+  if (file) {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    fetch('/analyze_image', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      console.log(data);
+      if (data.bounding_box) {
+        const adjustedDiameter = Math.max(data.bounding_box.width, data.bounding_box.height) + safetyEdge;
+        document.getElementById('result').innerText = `根據圖片分析，建議最小鏡片直徑：${adjustedDiameter.toFixed(2)} mm`;
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+    });
+  }
+}
+
+// 預覽圖片
+document.getElementById('upload').addEventListener('change', function(event) {
+  const file = event.target.files[0];
   if (file) {
     const reader = new FileReader();
     reader.onload = function(e) {
@@ -108,7 +129,7 @@ function calculateMLD() {
     };
     reader.readAsDataURL(file);
   }
-}
+});
 </script>
 
 </body>
