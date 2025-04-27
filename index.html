@@ -7,7 +7,7 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
     h1 { text-align: center; }
-    label, input, button, select { display: block; width: 100%; margin: 10px 0; }
+    label, input, button { display: block; width: 100%; margin: 10px 0; }
     input, select { padding: 8px; }
     button { background: #007bff; color: white; border: none; padding: 10px; cursor: pointer; }
     button:hover { background: #0056b3; }
@@ -70,11 +70,35 @@ function calculateMLD() {
   const decentration = Math.abs((pd / 2) - gc);
   
   // 假設使用眼位高度來修正鏡片形狀
-  const verticalAdjustment = lensHeight * 0.1; // 假設修正因子，根據眼位高度的影響
+  const verticalAdjustment = lensHeight * 0.1;
 
   const mld = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
 
   document.getElementById('result').innerText = `建議最小鏡片直徑：${mld.toFixed(2)} mm`;
+
+  // 上傳圖片到後端進行簡單形狀分析
+  const file = document.getElementById('upload').files[0];
+  if (file) {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    fetch('/analyze_image', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      console.log(data); // 顯示後端返回的分析結果
+      if (data.bounding_box) {
+        // 使用圖片中的邊界框來調整最小直徑的計算
+        const adjustedDiameter = Math.max(data.bounding_box.width, data.bounding_box.height) + safetyEdge;
+        document.getElementById('result').innerText = `根據圖片分析，建議最小鏡片直徑：${adjustedDiameter.toFixed(2)} mm`;
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+    });
+  }
 }
 
 // 預覽上傳圖片
