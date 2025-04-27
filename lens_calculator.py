@@ -1,49 +1,89 @@
-"""
-眼鏡鏡片計算器 - 根據鏡框尺寸與瞳距計算鏡片參數
-"""
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>鏡片最小直徑計算器</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
+    h1 { text-align: center; }
+    label, input, button, select { display: block; width: 100%; margin: 10px 0; }
+    input, select { padding: 8px; }
+    button { background: #007bff; color: white; border: none; padding: 10px; cursor: pointer; }
+    button:hover { background: #0056b3; }
+    .hidden { display: none; }
+    #preview { margin-top: 10px; max-width: 100%; }
+    #result { margin-top: 20px; font-weight: bold; color: #007bff; }
+  </style>
+</head>
+<body>
 
-def calculate_lens():
-    print("=== 眼鏡鏡片參數計算器 ===")
-    
-    # 輸入鏡框參數
-    try:
-        frame = float(input("輸入單邊鏡框寬度 (例: 52-18-140 中的 52，單位 mm): "))
-        bridge = float(input("輸入鼻梁寬度 (例: 52-18-140 中的 18，單位 mm): "))
-    except ValueError:
-        print("錯誤：請輸入數字")
-        return
+<h1>鏡片最小直徑計算器</h1>
 
-    # 瞳距輸入方式
-    pd_type = input("是否分開輸入左右眼瞳距？(y/n): ").lower()
-    if pd_type == 'y':
-        try:
-            pd_l = float(input("左眼瞳距 (從鼻中到瞳孔中心，mm): "))
-            pd_r = float(input("右眼瞳距 (從鼻中到瞳孔中心，mm): "))
-        except ValueError:
-            print("錯誤：請輸入數字")
-            return
-    else:
-        try:
-            total_pd = float(input("輸入總瞳距 (mm): "))
-            pd_l = pd_r = total_pd / 2
-        except ValueError:
-            print("錯誤：請輸入數字")
-            return
+<!-- 資料輸入 -->
+<label>鏡框寬度（mm）
+  <input type="number" id="frameWidth" placeholder="例如：140">
+</label>
 
-    # 計算公式
-    shift_l = round((frame + bridge - 2*pd_l) / 2, 1)
-    shift_r = round((frame + bridge - 2*pd_r) / 2, 1)
-    min_dia_l = round(frame + 2*abs(shift_l), 1)
-    min_dia_r = round(frame + 2*abs(shift_r), 1)
+<label>鏡框高度（mm）
+  <input type="number" id="frameHeight" placeholder="例如：45">
+</label>
 
-    # 輸出結果
-    print("\n=== 計算結果 ===")
-    print(f"左鏡片移心量: {shift_l}mm ({'鼻側' if shift_l >0 else '顳側'})")
-    print(f"最小鏡片直徑: {min_dia_l}mm\n")
-    
-    print(f"右鏡片移心量: {shift_r}mm ({'鼻側' if shift_r >0 else '顳側'})")
-    print(f"最小鏡片直徑: {min_dia_r}mm")
-    print("=================")
+<label>瞳孔距離（PD）（mm）
+  <input type="number" id="pd" placeholder="例如：62">
+</label>
 
-if __name__ == "__main__":
-    calculate_lens()
+<label>安全邊緣（mm）
+  <input type="number" id="safetyEdge" value="2">
+</label>
+
+<!-- 上傳圖片 -->
+<label>上傳鏡框照片（選擇性）
+  <input type="file" id="upload" accept="image/*">
+</label>
+<img id="preview" class="hidden" />
+
+<!-- 按鈕 -->
+<button onclick="calculateMLD()">計算最小直徑</button>
+
+<!-- 結果 -->
+<div id="result"></div>
+
+<script>
+function calculateMLD() {
+  const frameWidth = parseFloat(document.getElementById('frameWidth').value);
+  const frameHeight = parseFloat(document.getElementById('frameHeight').value);
+  const pd = parseFloat(document.getElementById('pd').value);
+  const safetyEdge = parseFloat(document.getElementById('safetyEdge').value) || 2;
+
+  if (isNaN(frameWidth) || isNaN(frameHeight) || isNaN(pd)) {
+    document.getElementById('result').innerText = "請輸入完整數據！";
+    return;
+  }
+
+  const gc = frameWidth / 2;
+  const decentration = Math.abs((pd / 2) - gc);
+  const diagonal = Math.sqrt(frameWidth ** 2 + frameHeight ** 2);
+  const ed = diagonal * 0.95; // 95% correction factor
+  const mld = 2 * decentration + ed + safetyEdge;
+
+  document.getElementById('result').innerText = `建議最小鏡片直徑：${mld.toFixed(2)} mm`;
+}
+
+// 預覽上傳圖片
+document.getElementById('upload').addEventListener('change', function(event) {
+  const file = event.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const preview = document.getElementById('preview');
+      preview.src = e.target.result;
+      preview.classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+  }
+});
+</script>
+
+</body>
+</html>
