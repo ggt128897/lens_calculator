@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE ht
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
