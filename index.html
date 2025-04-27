@@ -14,6 +14,40 @@
     .hidden { display: none; }
     #preview { margin-top: 10px; max-width: 100%; }
     #result { margin-top: 20px; font-weight: bold; color: #007bff; }
+
+    /* 形狀選擇卡片 */
+    .card-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .card {
+      background: white;
+      border: 2px solid #007bff;
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 14px;
+      color: #007bff;
+      text-align: center;
+      cursor: pointer;
+      flex: 1 1 30%;
+      min-width: 100px;
+      transition: all 0.3s ease;
+    }
+    .card .icon {
+      margin-bottom: 5px;
+    }
+    .card:hover {
+      background: #007bff;
+      color: white;
+    }
+    .card.selected {
+      background: #28a745;
+      color: white;
+      border-color: #28a745;
+    }
   </style>
 </head>
 <body>
@@ -57,6 +91,53 @@
 </label>
 <img id="preview" class="hidden" />
 
+<!-- 形狀選擇（卡片版＋小圖示） -->
+<h2>選擇鏡框形狀</h2>
+<div id="shapeSelection" class="card-container">
+  <div class="card" onclick="selectShape('round')">
+    <div class="icon">
+      <svg width="40" height="40"><circle cx="20" cy="20" r="15" stroke="#007bff" stroke-width="3" fill="none"/></svg>
+    </div>
+    <div>圓形</div>
+  </div>
+  <div class="card" onclick="selectShape('oval')">
+    <div class="icon">
+      <svg width="40" height="40"><ellipse cx="20" cy="20" rx="18" ry="12" stroke="#007bff" stroke-width="3" fill="none"/></svg>
+    </div>
+    <div>橢圓形</div>
+  </div>
+  <div class="card" onclick="selectShape('square')">
+    <div class="icon">
+      <svg width="40" height="40"><rect x="10" y="10" width="20" height="20" stroke="#007bff" stroke-width="3" fill="none"/></svg>
+    </div>
+    <div>方形</div>
+  </div>
+  <div class="card" onclick="selectShape('cat')">
+    <div class="icon">
+      <svg width="40" height="40">
+        <path d="M10 30 Q20 10 30 30 Q20 20 10 30" stroke="#007bff" stroke-width="3" fill="none"/>
+      </svg>
+    </div>
+    <div>貓眼型</div>
+  </div>
+  <div class="card" onclick="selectShape('aviator')">
+    <div class="icon">
+      <svg width="40" height="40">
+        <path d="M8 25 Q20 5 32 25 Q20 15 8 25" stroke="#007bff" stroke-width="3" fill="none"/>
+      </svg>
+    </div>
+    <div>飛行員型</div>
+  </div>
+  <div class="card" onclick="selectShape('special')">
+    <div class="icon">
+      <svg width="40" height="40">
+        <path d="M10 10 L30 10 L30 30 L10 30 Z M20 10 L20 30" stroke="#007bff" stroke-width="3" fill="none"/>
+      </svg>
+    </div>
+    <div>特殊類型</div>
+  </div>
+</div>
+
 <!-- 按鈕 -->
 <button onclick="calculateMLD()">計算最小直徑</button>
 
@@ -64,6 +145,15 @@
 <div id="result"></div>
 
 <script>
+let selectedShape = null;
+
+function selectShape(shape) {
+  selectedShape = shape;
+  const cards = document.querySelectorAll(".card");
+  cards.forEach(card => card.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+}
+
 function calculateMLD() {
   const lensED = parseFloat(document.getElementById('lensED').value);
   const bridgeWidth = parseFloat(document.getElementById('bridgeWidth').value);
