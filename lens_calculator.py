@@ -157,8 +157,8 @@ function calculateMLD() {
     })
     .then(response => response.json())
     .then(data => {
-      if (data.bounding_box) {
-        const adjustedDiameter = Math.max(data.bounding_box.width, data.bounding_box.height) + safetyEdge;
+      if (data.horizontal_blue_lines_detected) {
+        const adjustedDiameter = mld + 2; // Adjust based on your analysis logic
         document.getElementById('result').innerText =
           `根據圖片分析，建議最小鏡片直徑：${adjustedDiameter.toFixed(2)} mm`;
       }
