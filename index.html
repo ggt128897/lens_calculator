@@ -12,7 +12,7 @@
     button { background: #007bff; color: white; border: none; padding: 10px; cursor: pointer; }
     button:hover { background: #0056b3; }
     .hidden { display: none; }
-    #preview { margin-top: 10px; max-width: 100%; }
+    #preview, #canvas { margin-top: 10px; max-width: 100%; }
     #result { margin-top: 20px; font-weight: bold; color: #007bff; }
     .card-container {
       display: flex;
@@ -52,7 +52,6 @@
 
 <h1>鏡片最小直徑計算器</h1>
 
-<!-- 資料輸入 -->
 <label>鏡片寬度（ED）（mm）
   <input type="number" id="lensED" placeholder="例如：52">
 </label>
@@ -73,18 +72,17 @@
   <input type="number" id="pd" placeholder="例如：64">
 </label>
 
-<!-- 安全邊緣選項 -->
 <label>
   <input type="checkbox" id="useSafetyEdge"> 加入安全邊緣（2mm）
 </label>
 
-<!-- 上傳圖片 -->
-<label>上傳鏡框照片（選擇性）
+<label>上傳鏡框照片（可手動標記鏡片寬高）
   <input type="file" id="upload" accept="image/*">
 </label>
-<img id="preview" class="hidden" />
 
-<!-- 鏡框形狀選擇 -->
+<p id="canvasTip">請依序點擊：<b>左→右（水平線）</b>，<b>上→下（垂直線）</b>，完成後會自動填入寬與高。</p>
+<canvas id="canvas" class="hidden" style="border:1px solid #ccc;"></canvas>
+
 <h2>選擇鏡框形狀（選擇性）</h2>
 <div id="shapeSelection" class="card-container">
   <div class="card" onclick="selectShape('round')">
@@ -109,7 +107,6 @@
 
 <button onclick="calculateMLD()">計算最小直徑</button>
 
-<!-- 結果 -->
 <div id="result"></div>
 
 <script>
@@ -145,39 +142,60 @@ function calculateMLD() {
   const mld = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
 
   document.getElementById('result').innerText = `建議最小鏡片直徑：${mld.toFixed(2)} mm`;
-
-  const file = document.getElementById('upload').files[0];
-  if (file) {
-    const formData = new FormData();
-    formData.append('image', file);
-
-    fetch('/analyze_image', {
-      method: 'POST',
-      body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.horizontal_blue_lines_detected) {
-        const adjustedDiameter = mld + 2; // Adjust based on your analysis logic
-        document.getElementById('result').innerText =
-          `根據圖片分析，建議最小鏡片直徑：${adjustedDiameter.toFixed(2)} mm`;
-      }
-    })
-    .catch(error => {
-      console.error('Error:', error);
-    });
-  }
 }
 
-// 預覽圖片
+// Canvas 手動標記邏輯
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let points = [];
+
 document.getElementById('upload').addEventListener('change', function(event) {
   const file = event.target.files[0];
   if (file) {
     const reader = new FileReader();
     reader.onload = function(e) {
-      const preview = document.getElementById('preview');
-      preview.src = e.target.result;
-      preview.classList.remove('hidden');
+      const img = new Image();
+      img.onload = function() {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        canvas.classList.remove('hidden');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        points = [];
+
+        canvas.onclick = function(evt) {
+          const rect = canvas.getBoundingClientRect();
+          const x = evt.clientX - rect.left;
+          const y = evt.clientY - rect.top;
+
+          points.push({ x, y });
+          ctx.beginPath();
+          ctx.arc(x, y, 4, 0, 2 * Math.PI);
+          ctx.fillStyle = points.length <= 2 ? 'red' : 'green';
+          ctx.fill();
+
+          if (points.length === 4) {
+            const width = Math.abs(points[1].x - points[0].x);
+            const height = Math.abs(points[3].y - points[2].y);
+            ctx.strokeStyle = 'blue';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            ctx.lineTo(points[1].x, points[1].y);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(points[2].x, points[2].y);
+            ctx.lineTo(points[3].x, points[3].y);
+            ctx.stroke();
+
+            alert(`標記完成！\n鏡片寬度：${width.toFixed(1)} px\n鏡片高度：${height.toFixed(1)} px`);
+            document.getElementById('lensED').value = width.toFixed(1);
+            document.getElementById('lensHeight').value = height.toFixed(1);
+          }
+        };
+      };
+      img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   }
