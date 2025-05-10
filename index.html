@@ -20,43 +20,18 @@
 
 <h1>鏡片最小直徑計算器</h1>
 
-<!-- 輸入區 -->
-<label>鏡片寬度（ED）（mm）
-  <input type="number" id="lensED" placeholder="例如：52">
-</label>
+<label>鏡片寬度（ED）（mm）<input type="number" id="lensED" placeholder="例如：52"></label>
+<label>鼻橋寬度（DBL）（mm）<input type="number" id="bridgeWidth" placeholder="例如：18"></label>
+<label>眼位高度（mm）<input type="number" id="lensHeight" placeholder="例如：25"></label>
+<label>鏡片總高度 B”（選擇性）（mm）<input type="number" id="lensTotalHeightB" placeholder="例如：40.8"></label>
+<label>瞳孔距離（PD）（mm）<input type="number" id="pd" placeholder="例如：64"></label>
+<label><input type="checkbox" id="useSafetyEdge"> 加入安全邊緣（2mm）</label>
+<label>上傳鏡框照片（選擇性）<input type="file" id="upload" accept="image/*"></label>
 
-<label>鼻橋寬度（DBL）（mm）
-  <input type="number" id="bridgeWidth" placeholder="例如：18">
-</label>
-
-<label>眼位高度（mm）
-  <input type="number" id="lensHeight" placeholder="例如：25">
-</label>
-
-<label>鏡片總高度 B”（選擇性）（mm）
-  <input type="number" id="lensTotalHeightB" placeholder="例如：40.8">
-</label>
-
-<label>瞳孔距離（PD）（mm）
-  <input type="number" id="pd" placeholder="例如：64">
-</label>
-
-<label>
-  <input type="checkbox" id="useSafetyEdge"> 加入安全邊緣（2mm）
-</label>
-
-<!-- 圖片上傳 -->
-<label>上傳鏡框照片（選擇性）
-  <input type="file" id="upload" accept="image/*">
-</label>
-
-<div id="canvasContainer">
-  <canvas id="canvas" width="500" height="400"></canvas>
-</div>
+<div id="canvasContainer"><canvas id="canvas" width="500" height="400"></canvas></div>
 
 <button onclick="calculateMLD()">計算最小直徑</button>
 
-<!-- 結果 -->
 <div id="result"></div>
 
 <script>
@@ -115,36 +90,35 @@ function drawPoints() {
   }
 }
 
+// 主成分分析形狀判斷
 function detectShape() {
-  const numPoints = points.length;
-  if (numPoints < 3) return '未知形狀';
+  if (points.length < 3) return '未知形狀';
 
-  let angles = [];
-  for (let i = 0; i < numPoints; i++) {
-    const p0 = points[(i - 1 + numPoints) % numPoints];
-    const p1 = points[i];
-    const p2 = points[(i + 1) % numPoints];
+  const meanX = points.reduce((sum, p) => sum + p.x, 0) / points.length;
+  const meanY = points.reduce((sum, p) => sum + p.y, 0) / points.length;
+  const centered = points.map(p => [p.x - meanX, p.y - meanY]);
 
-    const v1 = { x: p0.x - p1.x, y: p0.y - p1.y };
-    const v2 = { x: p2.x - p1.x, y: p2.y - p1.y };
-
-    const dot = v1.x * v2.x + v1.y * v2.y;
-    const mag1 = Math.sqrt(v1.x ** 2 + v1.y ** 2);
-    const mag2 = Math.sqrt(v2.x ** 2 + v2.y ** 2);
-    const angle = Math.acos(dot / (mag1 * mag2)) * (180 / Math.PI);
-
-    if (!isNaN(angle)) {
-      angles.push(angle);
-    }
+  let covXX = 0, covXY = 0, covYY = 0;
+  for (let [x, y] of centered) {
+    covXX += x * x;
+    covXY += x * y;
+    covYY += y * y;
   }
+  covXX /= centered.length;
+  covXY /= centered.length;
+  covYY /= centered.length;
 
-  const avgAngle = angles.reduce((a, b) => a + b, 0) / angles.length;
+  const trace = covXX + covYY;
+  const det = covXX * covYY - covXY * covXY;
+  const sqrtTerm = Math.sqrt(trace * trace - 4 * det);
+  const lambda1 = (trace + sqrtTerm) / 2;
+  const lambda2 = (trace - sqrtTerm) / 2;
 
-  if (numPoints <= 4 && avgAngle >= 80 && avgAngle <= 100) return '方形';
-  if (numPoints <= 6 && avgAngle > 100 && avgAngle < 160) return '橢圓形';
-  if (numPoints > 6 && avgAngle > 140) return '圓形';
+  const ratio = lambda1 / lambda2;
 
-  return '未知形狀';
+  if (ratio < 1.2) return '圓形';
+  else if (ratio < 2.5) return '橢圓形';
+  else return '方形';
 }
 
 function calculateMLD() {
@@ -167,18 +141,16 @@ function calculateMLD() {
     ? lensTotalHeightB * 0.1
     : lensHeight * 0.1;
 
-  let baseMLD = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
+  let mld = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
 
   const shape = detectShape();
   let shapeAdjustment = 0;
   if (shape === '橢圓形') shapeAdjustment = 1;
   else if (shape === '方形') shapeAdjustment = 2;
-  else if (shape === '未知形狀') shapeAdjustment = 1.5;
-
-  const adjustedMLD = baseMLD + shapeAdjustment;
+  mld += shapeAdjustment;
 
   document.getElementById('result').innerText =
-    `辨識形狀：${shape}，建議最小鏡片直徑：${adjustedMLD.toFixed(2)} mm（含形狀微調）`;
+    `辨識形狀：${shape}，建議最小鏡片直徑：${mld.toFixed(2)} mm`;
 }
 </script>
 
