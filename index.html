@@ -11,7 +11,6 @@
     input, select { padding: 8px; }
     button { background: #007bff; color: white; border: none; padding: 10px; cursor: pointer; }
     button:hover { background: #0056b3; }
-    .hidden { display: none; }
     #canvasContainer { text-align: center; margin-top: 20px; }
     #canvas { border: 1px solid #ccc; max-width: 100%; }
     #result { margin-top: 20px; font-weight: bold; color: #007bff; text-align: center; }
@@ -21,7 +20,7 @@
 
 <h1>鏡片最小直徑計算器</h1>
 
-<!-- 資料輸入 -->
+<!-- 輸入區 -->
 <label>鏡片寬度（ED）（mm）
   <input type="number" id="lensED" placeholder="例如：52">
 </label>
@@ -42,12 +41,11 @@
   <input type="number" id="pd" placeholder="例如：64">
 </label>
 
-<!-- 安全邊緣選項 -->
 <label>
   <input type="checkbox" id="useSafetyEdge"> 加入安全邊緣（2mm）
 </label>
 
-<!-- 上傳圖片 -->
+<!-- 圖片上傳 -->
 <label>上傳鏡框照片（選擇性）
   <input type="file" id="upload" accept="image/*">
 </label>
@@ -118,11 +116,35 @@ function drawPoints() {
 }
 
 function detectShape() {
-  if (points.length < 3) return '未知形狀';
   const numPoints = points.length;
-  if (numPoints <= 4) return '方形';
-  if (numPoints <= 6) return '橢圓形';
-  return '圓形';
+  if (numPoints < 3) return '未知形狀';
+
+  let angles = [];
+  for (let i = 0; i < numPoints; i++) {
+    const p0 = points[(i - 1 + numPoints) % numPoints];
+    const p1 = points[i];
+    const p2 = points[(i + 1) % numPoints];
+
+    const v1 = { x: p0.x - p1.x, y: p0.y - p1.y };
+    const v2 = { x: p2.x - p1.x, y: p2.y - p1.y };
+
+    const dot = v1.x * v2.x + v1.y * v2.y;
+    const mag1 = Math.sqrt(v1.x ** 2 + v1.y ** 2);
+    const mag2 = Math.sqrt(v2.x ** 2 + v2.y ** 2);
+    const angle = Math.acos(dot / (mag1 * mag2)) * (180 / Math.PI);
+
+    if (!isNaN(angle)) {
+      angles.push(angle);
+    }
+  }
+
+  const avgAngle = angles.reduce((a, b) => a + b, 0) / angles.length;
+
+  if (numPoints <= 4 && avgAngle >= 80 && avgAngle <= 100) return '方形';
+  if (numPoints <= 6 && avgAngle > 100 && avgAngle < 160) return '橢圓形';
+  if (numPoints > 6 && avgAngle > 140) return '圓形';
+
+  return '未知形狀';
 }
 
 function calculateMLD() {
@@ -145,11 +167,18 @@ function calculateMLD() {
     ? lensTotalHeightB * 0.1
     : lensHeight * 0.1;
 
-  const mld = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
+  let baseMLD = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
 
   const shape = detectShape();
+  let shapeAdjustment = 0;
+  if (shape === '橢圓形') shapeAdjustment = 1;
+  else if (shape === '方形') shapeAdjustment = 2;
+  else if (shape === '未知形狀') shapeAdjustment = 1.5;
+
+  const adjustedMLD = baseMLD + shapeAdjustment;
+
   document.getElementById('result').innerText =
-    `辨識形狀：${shape}，建議最小鏡片直徑：${mld.toFixed(2)} mm`;
+    `辨識形狀：${shape}，建議最小鏡片直徑：${adjustedMLD.toFixed(2)} mm（含形狀微調）`;
 }
 </script>
 
