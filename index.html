@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>鏡片最小直徑計算器</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #f9f9f9; }
-    h1 { text-align: center; }
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
+    h1, h2 { text-align: center; }
     label, input, button { display: block; width: 100%; margin: 10px 0; }
     input, select { padding: 8px; }
     button { background: #007bff; color: white; border: none; padding: 10px; cursor: pointer; }
     button:hover { background: #0056b3; }
+    .hidden { display: none; }
     #canvasContainer { text-align: center; margin-top: 20px; }
     #canvas { border: 1px solid #ccc; max-width: 100%; }
     #result { margin-top: 20px; font-weight: bold; color: #007bff; text-align: center; }
@@ -20,19 +21,49 @@
 
 <h1>鏡片最小直徑計算器</h1>
 
-<label>鏡片寬度（ED）（mm）<input type="number" id="lensED" placeholder="例如：52"></label>
-<label>鼻橋寬度（DBL）（mm）<input type="number" id="bridgeWidth" placeholder="例如：18"></label>
-<label>眼位高度（mm）<input type="number" id="lensHeight" placeholder="例如：25"></label>
-<label>鏡片總高度 B”（選擇性）（mm）<input type="number" id="lensTotalHeightB" placeholder="例如：40.8"></label>
-<label>瞳孔距離（PD）（mm）<input type="number" id="pd" placeholder="例如：64"></label>
-<label><input type="checkbox" id="useSafetyEdge"> 加入安全邊緣（2mm）</label>
-<label><input type="checkbox" id="autoFit"> 自動擬合形狀輪廓</label>
-<label>上傳鏡框照片（選擇性）<input type="file" id="upload" accept="image/*"></label>
+<!-- 資料輸入 -->
+<label>鏡片寬度（ED）（mm）
+  <input type="number" id="lensED" placeholder="例如：52">
+</label>
 
-<div id="canvasContainer"><canvas id="canvas" width="500" height="400"></canvas></div>
+<label>鼻橋寬度（DBL）（mm）
+  <input type="number" id="bridgeWidth" placeholder="例如：18">
+</label>
+
+<label>眼位高度（mm）
+  <input type="number" id="lensHeight" placeholder="例如：25">
+</label>
+
+<label>鏡片總高度 B”（選擇性）（mm）
+  <input type="number" id="lensTotalHeightB" placeholder="例如：40.8">
+</label>
+
+<label>瞳孔距離（PD）（mm）
+  <input type="number" id="pd" placeholder="例如：64">
+</label>
+
+<!-- 安全邊緣選項 -->
+<label>
+  <input type="checkbox" id="useSafetyEdge"> 加入安全邊緣（2mm）
+</label>
+
+<!-- 上傳圖片 -->
+<label>上傳鏡框照片（選擇性）
+  <input type="file" id="upload" accept="image/*">
+</label>
+
+<!-- 自動標記與判讀形狀 -->
+<label>
+  <input type="checkbox" id="autoMarkShape"> 自動標記形狀並判讀
+</label>
+
+<div id="canvasContainer">
+  <canvas id="canvas" width="500" height="400"></canvas>
+</div>
 
 <button onclick="calculateMLD()">計算最小直徑</button>
 
+<!-- 結果 -->
 <div id="result"></div>
 
 <script>
@@ -72,82 +103,98 @@ function drawPoints() {
   ctx.fillStyle = 'red';
   ctx.strokeStyle = 'red';
   ctx.lineWidth = 2;
-
-  for (let p of points) {
+  for (let i = 0; i < points.length; i++) {
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 5, 0, 2 * Math.PI);
+    ctx.arc(points[i].x, points[i].y, 5, 0, 2 * Math.PI);
     ctx.fill();
-  }
-
-  if (points.length >= 3 && document.getElementById('autoFit').checked) {
-    const hull = convexHull(points);
-    ctx.beginPath();
-    ctx.moveTo(hull[0].x, hull[0].y);
-    for (let i = 1; i < hull.length; i++) {
-      ctx.lineTo(hull[i].x, hull[i].y);
-    }
-    ctx.closePath();
-    ctx.strokeStyle = 'blue';
-    ctx.stroke();
-  } else if (points.length > 2) {
-    ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i++) {
+    if (i > 0) {
+      ctx.beginPath();
+      ctx.moveTo(points[i - 1].x, points[i - 1].y);
       ctx.lineTo(points[i].x, points[i].y);
+      ctx.stroke();
     }
-    ctx.closePath();
+  }
+  if (points.length > 2) {
+    ctx.beginPath();
+    ctx.moveTo(points[points.length - 1].x, points[points.length - 1].y);
+    ctx.lineTo(points[0].x, points[0].y);
     ctx.stroke();
   }
+  drawShape();
 }
 
-function convexHull(pts) {
-  pts = pts.slice().sort((a, b) => a.x - b.x || a.y - b.y);
-  const cross = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x);
-  let lower = [], upper = [];
+function drawShape() {
+  const autoMarkShape = document.getElementById('autoMarkShape').checked;
+  if (!autoMarkShape || points.length < 3) return;
 
-  for (let p of pts) {
-    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
-    lower.push(p);
+  // 顯示輪廓
+  const shape = detectShape();
+  ctx.font = "16px Arial";
+  ctx.fillStyle = "blue";
+  ctx.fillText("判讀形狀: " + shape, 10, canvas.height - 10);
+  
+  // 如果是圓形或橢圓形，繪製圓形或橢圓形輪廓
+  if (shape === "圓形" || shape === "橢圓形") {
+    const center = getCenter(points);
+    const radius = calculateRadius(points, center);
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radius, 0, 2 * Math.PI);
+    ctx.setLineDash([5, 3]); // 虛線
+    ctx.strokeStyle = "green";
+    ctx.lineWidth = 2;
+    ctx.stroke();
   }
-  for (let i = pts.length - 1; i >= 0; i--) {
-    let p = pts[i];
-    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
-    upper.push(p);
+  // 如果是方形，顯示方形輪廓
+  if (shape === "方形") {
+    const boundingBox = getBoundingBox(points);
+    ctx.beginPath();
+    ctx.rect(boundingBox.x, boundingBox.y, boundingBox.width, boundingBox.height);
+    ctx.setLineDash([5, 3]); // 虛線
+    ctx.strokeStyle = "orange";
+    ctx.lineWidth = 2;
+    ctx.stroke();
   }
-
-  upper.pop();
-  lower.pop();
-  return lower.concat(upper);
 }
 
 function detectShape() {
-  const pts = (document.getElementById('autoFit').checked && points.length >= 3) ? convexHull(points) : points;
-  if (pts.length < 3) return '未知形狀';
+  const autoMarkShape = document.getElementById('autoMarkShape').checked;
+  if (!autoMarkShape || points.length < 3) return '未知形狀';
 
-  const meanX = pts.reduce((sum, p) => sum + p.x, 0) / pts.length;
-  const meanY = pts.reduce((sum, p) => sum + p.y, 0) / pts.length;
-  const centered = pts.map(p => [p.x - meanX, p.y - meanY]);
+  // 基於標記點自動判讀形狀
+  const numPoints = points.length;
+  const isCircular = numPoints > 5 && Math.abs(numPoints - 6) <= 1; // 圓形判斷邏輯
+  const isOval = numPoints > 4 && numPoints <= 6; // 橢圓形判斷邏輯
+  const isSquare = numPoints >= 4 && numPoints <= 5; // 方形判斷邏輯
 
-  let covXX = 0, covXY = 0, covYY = 0;
-  for (let [x, y] of centered) {
-    covXX += x * x;
-    covXY += x * y;
-    covYY += y * y;
-  }
-  covXX /= centered.length;
-  covXY /= centered.length;
-  covYY /= centered.length;
+  if (isCircular) return '圓形';
+  if (isOval) return '橢圓形';
+  if (isSquare) return '方形';
+  return '未知形狀';
+}
 
-  const trace = covXX + covYY;
-  const det = covXX * covYY - covXY * covXY;
-  const sqrtTerm = Math.sqrt(trace * trace - 4 * det);
-  const lambda1 = (trace + sqrtTerm) / 2;
-  const lambda2 = (trace - sqrtTerm) / 2;
-  const ratio = lambda1 / lambda2;
+function calculateRadius(points, center) {
+  let maxDistance = 0;
+  points.forEach(point => {
+    const distance = Math.sqrt(Math.pow(point.x - center.x, 2) + Math.pow(point.y - center.y, 2));
+    if (distance > maxDistance) maxDistance = distance;
+  });
+  return maxDistance;
+}
 
-  if (ratio < 1.2) return '圓形';
-  else if (ratio < 2.5) return '橢圓形';
-  else return '方形';
+function getCenter(points) {
+  const xSum = points.reduce((sum, point) => sum + point.x, 0);
+  const ySum = points.reduce((sum, point) => sum + point.y, 0);
+  return { x: xSum / points.length, y: ySum / points.length };
+}
+
+function getBoundingBox(points) {
+  const xs = points.map(p => p.x);
+  const ys = points.map(p => p.y);
+  const xMin = Math.min(...xs);
+  const xMax = Math.max(...xs);
+  const yMin = Math.min(...ys);
+  const yMax = Math.max(...ys);
+  return { x: xMin, y: yMin, width: xMax - xMin, height: yMax - yMin };
 }
 
 function calculateMLD() {
@@ -170,14 +217,9 @@ function calculateMLD() {
     ? lensTotalHeightB * 0.1
     : lensHeight * 0.1;
 
-  let mld = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
+  const mld = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
 
   const shape = detectShape();
-  let shapeAdjustment = 0;
-  if (shape === '橢圓形') shapeAdjustment = 1;
-  else if (shape === '方形') shapeAdjustment = 2;
-  mld += shapeAdjustment;
-
   document.getElementById('result').innerText =
     `辨識形狀：${shape}，建議最小鏡片直徑：${mld.toFixed(2)} mm`;
 }
