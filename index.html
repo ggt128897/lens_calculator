@@ -2,37 +2,68 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>鏡片最小直徑計算器</title>
   <script async src="https://docs.opencv.org/4.x/opencv.js" type="text/javascript"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #f2f2f2; }
-    label, input, button, select { display: block; margin: 10px auto; width: 90%; max-width: 500px; }
-    canvas { display: block; margin: 20px auto; border: 1px solid #ccc; }
-    #result { text-align: center; font-weight: bold; color: #0066cc; margin-top: 10px; }
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
+    h1, h2 { text-align: center; }
+    label, input, button { display: block; width: 100%; margin: 10px 0; }
+    input, select { padding: 8px; }
+    button { background: #007bff; color: white; border: none; padding: 10px; cursor: pointer; }
+    button:hover { background: #0056b3; }
+    .hidden { display: none; }
+    #canvasContainer { text-align: center; margin-top: 20px; }
+    #canvas { border: 1px solid #ccc; max-width: 100%; }
+    #result { margin-top: 20px; font-weight: bold; color: #007bff; text-align: center; }
   </style>
 </head>
 <body>
 
-<h2>鏡片最小直徑計算器</h2>
+<h1>鏡片最小直徑計算器</h1>
 
-<!-- 最小直徑計算器 -->
-<label>瞳孔距離（PD，mm）<input type="number" id="pd" /></label>
-<label>鏡框幾何中心距離（GC，mm）<input type="number" id="gc" /></label>
-<label>偏移距離（Decentration，mm）<input type="number" id="decentration" /></label>
-<label>安全邊距（Edge buffer，mm）<input type="number" id="buffer" value="2" /></label>
+<!-- 資料輸入 -->
+<label>鏡片寬度（ED）（mm）
+  <input type="number" id="lensED" placeholder="例如：52">
+</label>
+
+<label>鼻橋寬度（DBL）（mm）
+  <input type="number" id="bridgeWidth" placeholder="例如：18">
+</label>
+
+<label>眼位高度（mm）
+  <input type="number" id="lensHeight" placeholder="例如：25">
+</label>
+
+<label>鏡片總高度 B”（選擇性）（mm）
+  <input type="number" id="lensTotalHeightB" placeholder="例如：40.8">
+</label>
+
+<label>瞳孔距離（PD）（mm）
+  <input type="number" id="pd" placeholder="例如：64">
+</label>
+
+<!-- 安全邊緣選項 -->
+<label>
+  <input type="checkbox" id="useSafetyEdge"> 加入安全邊緣（2mm）
+</label>
+
+<!-- 上傳圖片 -->
+<label>上傳鏡框照片（選擇性）
+  <input type="file" id="upload" accept="image/*">
+</label>
+
+<div id="canvasContainer">
+  <canvas id="canvas" width="500" height="400"></canvas>
+</div>
+
 <button onclick="calculateMLD()">計算最小直徑</button>
-<div id="mldResult">最小直徑：-- mm</div>
 
-<!-- 圖像辨識 -->
-<hr/>
-<h3>鏡框圖像分析</h3>
-<label>上傳鏡框圖片<input type="file" id="upload" accept="image/*"></label>
-<label><input type="checkbox" id="autoDetect"> 啟用自動判讀與輪廓標記</label>
-<canvas id="canvas" width="500" height="400"></canvas>
-<div id="result">尚未上傳圖片</div>
+<!-- 結果 -->
+<div id="result"></div>
 
 <script>
+let points = [];
 let canvas = document.getElementById('canvas');
 let ctx = canvas.getContext('2d');
 let img = new Image();
@@ -40,20 +71,22 @@ let cvReady = false;
 
 cv['onRuntimeInitialized'] = () => { cvReady = true; };
 
-document.getElementById('upload').addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(evt) {
-    img.onload = function() {
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0);
-      if (document.getElementById('autoDetect').checked && cvReady) detectShape();
+document.getElementById('upload').addEventListener('change', function(event) {
+  const file = event.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      img.onload = function() {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        points = [];
+        if (cvReady) detectShape();
+      };
+      img.src = e.target.result;
     };
-    img.src = evt.target.result;
-  };
-  reader.readAsDataURL(file);
+    reader.readAsDataURL(file);
+  }
 });
 
 function detectShape() {
@@ -110,16 +143,28 @@ function detectShape() {
 }
 
 function calculateMLD() {
+  const lensED = parseFloat(document.getElementById('lensED').value);
+  const bridgeWidth = parseFloat(document.getElementById('bridgeWidth').value);
+  const lensHeight = parseFloat(document.getElementById('lensHeight').value);
+  const lensTotalHeightB = parseFloat(document.getElementById('lensTotalHeightB').value);
   const pd = parseFloat(document.getElementById('pd').value);
-  const gc = parseFloat(document.getElementById('gc').value);
-  const dec = parseFloat(document.getElementById('decentration').value);
-  const buffer = parseFloat(document.getElementById('buffer').value);
-  if (isNaN(pd) || isNaN(gc) || isNaN(dec) || isNaN(buffer)) {
-    document.getElementById('mldResult').innerText = '請完整輸入所有數值';
+  const useSafetyEdge = document.getElementById('useSafetyEdge').checked;
+  const safetyEdge = useSafetyEdge ? 2 : 0;
+
+  if ([lensED, bridgeWidth, lensHeight, pd].some(isNaN)) {
+    document.getElementById('result').innerText = "請輸入完整數據！";
     return;
   }
-  const mld = Math.round((Math.abs(pd - gc) + dec + buffer) * 2 * 10) / 10;
-  document.getElementById('mldResult').innerText = `最小直徑建議值：${mld} mm`;
+
+  const gc = (lensED + bridgeWidth) / 2;
+  const decentration = Math.abs((pd / 2) - gc);
+  const verticalAdjustment = !isNaN(lensTotalHeightB)
+    ? lensTotalHeightB * 0.1
+    : lensHeight * 0.1;
+
+  const mld = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
+
+  document.getElementById('result').innerText += `\n建議最小鏡片直徑：${mld.toFixed(2)} mm`;
 }
 </script>
 
