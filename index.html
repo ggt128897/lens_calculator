@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>鏡片最小直徑計算器</title>
-  <script async src="https://docs.opencv.org/4.x/opencv.js" type="text/javascript"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
     h1, h2 { text-align: center; }
@@ -67,9 +66,6 @@ let points = [];
 let canvas = document.getElementById('canvas');
 let ctx = canvas.getContext('2d');
 let img = new Image();
-let cvReady = false;
-
-cv['onRuntimeInitialized'] = () => { cvReady = true; };
 
 document.getElementById('upload').addEventListener('change', function(event) {
   const file = event.target.files[0];
@@ -81,7 +77,6 @@ document.getElementById('upload').addEventListener('change', function(event) {
         canvas.height = img.height;
         ctx.drawImage(img, 0, 0);
         points = [];
-        if (cvReady) detectShape();
       };
       img.src = e.target.result;
     };
@@ -89,57 +84,45 @@ document.getElementById('upload').addEventListener('change', function(event) {
   }
 });
 
-function detectShape() {
-  let src = cv.imread(canvas);
-  let dst = new cv.Mat();
-  let gray = new cv.Mat();
-  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-  cv.GaussianBlur(gray, gray, new cv.Size(5, 5), 0);
-  cv.Canny(gray, dst, 50, 150);
-  let contours = new cv.MatVector();
-  let hierarchy = new cv.Mat();
-  cv.findContours(dst, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+canvas.addEventListener('click', function(event) {
+  const rect = canvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  points.push({ x, y });
+  drawPoints();
+});
 
-  if (contours.size() === 0) {
-    document.getElementById('result').innerText = '未偵測到形狀';
-    return;
-  }
-
-  let maxContour = contours.get(0);
-  for (let i = 1; i < contours.size(); i++) {
-    if (cv.contourArea(contours.get(i)) > cv.contourArea(maxContour)) {
-      maxContour = contours.get(i);
-    }
-  }
-
+function drawPoints() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(img, 0, 0);
-  ctx.strokeStyle = "red";
+  ctx.fillStyle = 'red';
+  ctx.strokeStyle = 'red';
   ctx.lineWidth = 2;
-  ctx.beginPath();
-  for (let i = 0; i < maxContour.data32S.length / 2; i++) {
-    let x = maxContour.data32S[i * 2];
-    let y = maxContour.data32S[i * 2 + 1];
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
+  for (let i = 0; i < points.length; i++) {
+    ctx.beginPath();
+    ctx.arc(points[i].x, points[i].y, 5, 0, 2 * Math.PI);
+    ctx.fill();
+    if (i > 0) {
+      ctx.beginPath();
+      ctx.moveTo(points[i - 1].x, points[i - 1].y);
+      ctx.lineTo(points[i].x, points[i].y);
+      ctx.stroke();
+    }
   }
-  ctx.closePath();
-  ctx.stroke();
+  if (points.length > 2) {
+    ctx.beginPath();
+    ctx.moveTo(points[points.length - 1].x, points[points.length - 1].y);
+    ctx.lineTo(points[0].x, points[0].y);
+    ctx.stroke();
+  }
+}
 
-  // 判讀形狀
-  let peri = cv.arcLength(maxContour, true);
-  let approx = new cv.Mat();
-  cv.approxPolyDP(maxContour, approx, 0.02 * peri, true);
-  let shape = '未知形狀';
-  if (approx.rows === 3) shape = '三角形';
-  else if (approx.rows === 4) shape = '方形';
-  else if (approx.rows > 4 && approx.rows <= 6) shape = '橢圓形';
-  else if (approx.rows > 6) shape = '圓形';
-
-  document.getElementById('result').innerText = `形狀判讀結果：${shape}（頂點數 ${approx.rows}）`;
-
-  approx.delete(); src.delete(); dst.delete(); gray.delete();
-  contours.delete(); hierarchy.delete();
+function detectShape() {
+  if (points.length < 3) return '未知形狀';
+  const numPoints = points.length;
+  if (numPoints <= 4) return '方形';
+  if (numPoints <= 6) return '橢圓形';
+  return '圓形';
 }
 
 function calculateMLD() {
@@ -164,7 +147,9 @@ function calculateMLD() {
 
   const mld = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
 
-  document.getElementById('result').innerText += `\n建議最小鏡片直徑：${mld.toFixed(2)} mm`;
+  const shape = detectShape();
+  document.getElementById('result').innerText =
+    `辨識形狀：${shape}，建議最小鏡片直徑：${mld.toFixed(2)} mm`;
 }
 </script>
 
