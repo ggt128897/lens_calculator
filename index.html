@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>鏡片最小直徑計算器</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
-    h1, h2 { text-align: center; }
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f9f9f9; }
+    h1 { text-align: center; }
     label, input, button { display: block; width: 100%; margin: 10px 0; }
     input, select { padding: 8px; }
     button { background: #007bff; color: white; border: none; padding: 10px; cursor: pointer; }
@@ -26,6 +26,7 @@
 <label>鏡片總高度 B”（選擇性）（mm）<input type="number" id="lensTotalHeightB" placeholder="例如：40.8"></label>
 <label>瞳孔距離（PD）（mm）<input type="number" id="pd" placeholder="例如：64"></label>
 <label><input type="checkbox" id="useSafetyEdge"> 加入安全邊緣（2mm）</label>
+<label><input type="checkbox" id="autoFit"> 自動擬合形狀輪廓</label>
 <label>上傳鏡框照片（選擇性）<input type="file" id="upload" accept="image/*"></label>
 
 <div id="canvasContainer"><canvas id="canvas" width="500" height="400"></canvas></div>
@@ -71,32 +72,61 @@ function drawPoints() {
   ctx.fillStyle = 'red';
   ctx.strokeStyle = 'red';
   ctx.lineWidth = 2;
-  for (let i = 0; i < points.length; i++) {
+
+  for (let p of points) {
     ctx.beginPath();
-    ctx.arc(points[i].x, points[i].y, 5, 0, 2 * Math.PI);
+    ctx.arc(p.x, p.y, 5, 0, 2 * Math.PI);
     ctx.fill();
-    if (i > 0) {
-      ctx.beginPath();
-      ctx.moveTo(points[i - 1].x, points[i - 1].y);
-      ctx.lineTo(points[i].x, points[i].y);
-      ctx.stroke();
-    }
   }
-  if (points.length > 2) {
+
+  if (points.length >= 3 && document.getElementById('autoFit').checked) {
+    const hull = convexHull(points);
     ctx.beginPath();
-    ctx.moveTo(points[points.length - 1].x, points[points.length - 1].y);
-    ctx.lineTo(points[0].x, points[0].y);
+    ctx.moveTo(hull[0].x, hull[0].y);
+    for (let i = 1; i < hull.length; i++) {
+      ctx.lineTo(hull[i].x, hull[i].y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = 'blue';
+    ctx.stroke();
+  } else if (points.length > 2) {
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.closePath();
     ctx.stroke();
   }
 }
 
-// 主成分分析形狀判斷
-function detectShape() {
-  if (points.length < 3) return '未知形狀';
+function convexHull(pts) {
+  pts = pts.slice().sort((a, b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x - o.x)*(b.y - o.y) - (a.y - o.y)*(b.x - o.x);
+  let lower = [], upper = [];
 
-  const meanX = points.reduce((sum, p) => sum + p.x, 0) / points.length;
-  const meanY = points.reduce((sum, p) => sum + p.y, 0) / points.length;
-  const centered = points.map(p => [p.x - meanX, p.y - meanY]);
+  for (let p of pts) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+    lower.push(p);
+  }
+  for (let i = pts.length - 1; i >= 0; i--) {
+    let p = pts[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+    upper.push(p);
+  }
+
+  upper.pop();
+  lower.pop();
+  return lower.concat(upper);
+}
+
+function detectShape() {
+  const pts = (document.getElementById('autoFit').checked && points.length >= 3) ? convexHull(points) : points;
+  if (pts.length < 3) return '未知形狀';
+
+  const meanX = pts.reduce((sum, p) => sum + p.x, 0) / pts.length;
+  const meanY = pts.reduce((sum, p) => sum + p.y, 0) / pts.length;
+  const centered = pts.map(p => [p.x - meanX, p.y - meanY]);
 
   let covXX = 0, covXY = 0, covYY = 0;
   for (let [x, y] of centered) {
@@ -113,7 +143,6 @@ function detectShape() {
   const sqrtTerm = Math.sqrt(trace * trace - 4 * det);
   const lambda1 = (trace + sqrtTerm) / 2;
   const lambda2 = (trace - sqrtTerm) / 2;
-
   const ratio = lambda1 / lambda2;
 
   if (ratio < 1.2) return '圓形';
