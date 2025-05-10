@@ -1,17 +1,15 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8">
   <title>鏡片最小直徑計算器</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
-    h1, h2 { text-align: center; }
+    h1 { text-align: center; }
     label, input, button { display: block; width: 100%; margin: 10px 0; }
     input, select { padding: 8px; }
     button { background: #007bff; color: white; border: none; padding: 10px; cursor: pointer; }
     button:hover { background: #0056b3; }
-    .hidden { display: none; }
     #canvasContainer { text-align: center; margin-top: 20px; }
     #canvas { border: 1px solid #ccc; max-width: 100%; }
     #result { margin-top: 20px; font-weight: bold; color: #007bff; text-align: center; }
@@ -21,7 +19,6 @@
 
 <h1>鏡片最小直徑計算器</h1>
 
-<!-- 資料輸入 -->
 <label>鏡片寬度（ED）（mm）
   <input type="number" id="lensED" placeholder="例如：52">
 </label>
@@ -42,19 +39,16 @@
   <input type="number" id="pd" placeholder="例如：64">
 </label>
 
-<!-- 安全邊緣選項 -->
 <label>
   <input type="checkbox" id="useSafetyEdge"> 加入安全邊緣（2mm）
 </label>
 
-<!-- 上傳圖片 -->
-<label>上傳鏡框照片（選擇性）
+<label>上傳鏡框照片
   <input type="file" id="upload" accept="image/*">
 </label>
 
-<!-- 自動標記與判讀形狀 -->
 <label>
-  <input type="checkbox" id="autoMarkShape"> 自動標記形狀並判讀
+  <input type="checkbox" id="autoMarkShape"> 自動標記形狀輪廓
 </label>
 
 <div id="canvasContainer">
@@ -63,138 +57,89 @@
 
 <button onclick="calculateMLD()">計算最小直徑</button>
 
-<!-- 結果 -->
 <div id="result"></div>
 
+<!-- 載入 OpenCV.js -->
+<script async src="https://docs.opencv.org/4.x/opencv.js" type="text/javascript"></script>
+
 <script>
-let points = [];
+let imgElement = null;
 let canvas = document.getElementById('canvas');
 let ctx = canvas.getContext('2d');
-let img = new Image();
+let src = null;
+let dst = null;
+let contours = new cv.MatVector();
+let hierarchy = new cv.Mat();
+let shapeType = '未知形狀';
 
 document.getElementById('upload').addEventListener('change', function(event) {
-  const file = event.target.files[0];
+  let file = event.target.files[0];
   if (file) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      img.onload = function() {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-        points = [];
-      };
-      img.src = e.target.result;
+    imgElement = new Image();
+    imgElement.onload = function() {
+      canvas.width = imgElement.width;
+      canvas.height = imgElement.height;
+      ctx.drawImage(imgElement, 0, 0);
+      if (document.getElementById('autoMarkShape').checked) {
+        processImage();
+      }
     };
-    reader.readAsDataURL(file);
+    imgElement.src = URL.createObjectURL(file);
   }
 });
 
-canvas.addEventListener('click', function(event) {
-  const rect = canvas.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
-  points.push({ x, y });
-  drawPoints();
-});
+function processImage() {
+  if (typeof cv === 'undefined') {
+    alert('OpenCV.js 尚未加載完成，請稍候再試。');
+    return;
+  }
 
-function drawPoints() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(img, 0, 0);
-  ctx.fillStyle = 'red';
-  ctx.strokeStyle = 'red';
-  ctx.lineWidth = 2;
-  for (let i = 0; i < points.length; i++) {
-    ctx.beginPath();
-    ctx.arc(points[i].x, points[i].y, 5, 0, 2 * Math.PI);
-    ctx.fill();
-    if (i > 0) {
-      ctx.beginPath();
-      ctx.moveTo(points[i - 1].x, points[i - 1].y);
-      ctx.lineTo(points[i].x, points[i].y);
-      ctx.stroke();
+  src = cv.imread(imgElement);
+  dst = new cv.Mat();
+  cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
+  cv.GaussianBlur(dst, dst, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
+  cv.Canny(dst, dst, 50, 150, 3, false);
+  cv.findContours(dst, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+  // 繪製輪廓
+  ctx.drawImage(imgElement, 0, 0);
+  for (let i = 0; i < contours.size(); ++i) {
+    let color = new cv.Scalar(255, 0, 0);
+    cv.drawContours(src, contours, i, color, 2, cv.LINE_8, hierarchy, 100);
+  }
+  cv.imshow('canvas', src);
+
+  // 判讀形狀
+  if (contours.size() > 0) {
+    let cnt = contours.get(0);
+    let peri = cv.arcLength(cnt, true);
+    let approx = new cv.Mat();
+    cv.approxPolyDP(cnt, approx, 0.04 * peri, true);
+    let vertices = approx.rows;
+
+    if (vertices === 3) {
+      shapeType = '三角形';
+    } else if (vertices === 4) {
+      shapeType = '方形';
+    } else if (vertices > 4 && vertices <= 6) {
+      shapeType = '橢圓形';
+    } else if (vertices > 6) {
+      shapeType = '圓形';
+    } else {
+      shapeType = '未知形狀';
     }
+
+    approx.delete();
+    cnt.delete();
+  } else {
+    shapeType = '未知形狀';
   }
-  if (points.length > 2) {
-    ctx.beginPath();
-    ctx.moveTo(points[points.length - 1].x, points[points.length - 1].y);
-    ctx.lineTo(points[0].x, points[0].y);
-    ctx.stroke();
-  }
-  drawShape();
-}
 
-function drawShape() {
-  const autoMarkShape = document.getElementById('autoMarkShape').checked;
-  if (!autoMarkShape || points.length < 3) return;
-
-  // 顯示輪廓
-  const shape = detectShape();
-  ctx.font = "16px Arial";
-  ctx.fillStyle = "blue";
-  ctx.fillText("判讀形狀: " + shape, 10, canvas.height - 10);
-  
-  // 如果是圓形或橢圓形，繪製圓形或橢圓形輪廓
-  if (shape === "圓形" || shape === "橢圓形") {
-    const center = getCenter(points);
-    const radius = calculateRadius(points, center);
-    ctx.beginPath();
-    ctx.arc(center.x, center.y, radius, 0, 2 * Math.PI);
-    ctx.setLineDash([5, 3]); // 虛線
-    ctx.strokeStyle = "green";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
-  // 如果是方形，顯示方形輪廓
-  if (shape === "方形") {
-    const boundingBox = getBoundingBox(points);
-    ctx.beginPath();
-    ctx.rect(boundingBox.x, boundingBox.y, boundingBox.width, boundingBox.height);
-    ctx.setLineDash([5, 3]); // 虛線
-    ctx.strokeStyle = "orange";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
-}
-
-function detectShape() {
-  const autoMarkShape = document.getElementById('autoMarkShape').checked;
-  if (!autoMarkShape || points.length < 3) return '未知形狀';
-
-  // 基於標記點自動判讀形狀
-  const numPoints = points.length;
-  const isCircular = numPoints > 5 && Math.abs(numPoints - 6) <= 1; // 圓形判斷邏輯
-  const isOval = numPoints > 4 && numPoints <= 6; // 橢圓形判斷邏輯
-  const isSquare = numPoints >= 4 && numPoints <= 5; // 方形判斷邏輯
-
-  if (isCircular) return '圓形';
-  if (isOval) return '橢圓形';
-  if (isSquare) return '方形';
-  return '未知形狀';
-}
-
-function calculateRadius(points, center) {
-  let maxDistance = 0;
-  points.forEach(point => {
-    const distance = Math.sqrt(Math.pow(point.x - center.x, 2) + Math.pow(point.y - center.y, 2));
-    if (distance > maxDistance) maxDistance = distance;
-  });
-  return maxDistance;
-}
-
-function getCenter(points) {
-  const xSum = points.reduce((sum, point) => sum + point.x, 0);
-  const ySum = points.reduce((sum, point) => sum + point.y, 0);
-  return { x: xSum / points.length, y: ySum / points.length };
-}
-
-function getBoundingBox(points) {
-  const xs = points.map(p => p.x);
-  const ys = points.map(p => p.y);
-  const xMin = Math.min(...xs);
-  const xMax = Math.max(...xs);
-  const yMin = Math.min(...ys);
-  const yMax = Math.max(...ys);
-  return { x: xMin, y: yMin, width: xMax - xMin, height: yMax - yMin };
+  // 清理資源
+  src.delete();
+  dst.delete();
+  contours.delete();
+  hierarchy.delete();
 }
 
 function calculateMLD() {
@@ -219,9 +164,8 @@ function calculateMLD() {
 
   const mld = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
 
-  const shape = detectShape();
   document.getElementById('result').innerText =
-    `辨識形狀：${shape}，建議最小鏡片直徑：${mld.toFixed(2)} mm`;
+    `辨識形狀：${shapeType}，建議最小鏡片直徑：${mld.toFixed(2)} mm`;
 }
 </script>
 
