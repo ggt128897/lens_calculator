@@ -12,40 +12,9 @@
     button { background: #007bff; color: white; border: none; padding: 10px; cursor: pointer; }
     button:hover { background: #0056b3; }
     .hidden { display: none; }
-    #preview { margin-top: 10px; max-width: 100%; }
-    #result { margin-top: 20px; font-weight: bold; color: #007bff; }
-    .card-container {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-    .card {
-      background: white;
-      border: 2px solid #007bff;
-      border-radius: 10px;
-      padding: 10px;
-      font-size: 14px;
-      color: #007bff;
-      text-align: center;
-      cursor: pointer;
-      flex: 1 1 30%;
-      min-width: 100px;
-      transition: all 0.3s ease;
-    }
-    .card .icon {
-      margin-bottom: 5px;
-    }
-    .card:hover {
-      background: #007bff;
-      color: white;
-    }
-    .card.selected {
-      background: #28a745;
-      color: white;
-      border-color: #28a745;
-    }
+    #canvasContainer { text-align: center; margin-top: 20px; }
+    #canvas { border: 1px solid #ccc; max-width: 100%; }
+    #result { margin-top: 20px; font-weight: bold; color: #007bff; text-align: center; }
   </style>
 </head>
 <body>
@@ -82,29 +51,9 @@
 <label>上傳鏡框照片（選擇性）
   <input type="file" id="upload" accept="image/*">
 </label>
-<img id="preview" class="hidden" />
 
-<!-- 鏡框形狀選擇 -->
-<h2>選擇鏡框形狀（選擇性）</h2>
-<div id="shapeSelection" class="card-container">
-  <div class="card" onclick="selectShape('round')">
-    <div class="icon">
-      <svg width="40" height="40"><circle cx="20" cy="20" r="15" stroke="#007bff" stroke-width="3" fill="none"/></svg>
-    </div>
-    <div>圓形</div>
-  </div>
-  <div class="card" onclick="selectShape('oval')">
-    <div class="icon">
-      <svg width="40" height="40"><ellipse cx="20" cy="20" rx="18" ry="12" stroke="#007bff" stroke-width="3" fill="none"/></svg>
-    </div>
-    <div>橢圓形</div>
-  </div>
-  <div class="card" onclick="selectShape('square')">
-    <div class="icon">
-      <svg width="40" height="40"><rect x="10" y="10" width="20" height="20" stroke="#007bff" stroke-width="3" fill="none"/></svg>
-    </div>
-    <div>方形</div>
-  </div>
+<div id="canvasContainer">
+  <canvas id="canvas" width="500" height="400"></canvas>
 </div>
 
 <button onclick="calculateMLD()">計算最小直徑</button>
@@ -113,13 +62,67 @@
 <div id="result"></div>
 
 <script>
-let selectedShape = null;
+let points = [];
+let canvas = document.getElementById('canvas');
+let ctx = canvas.getContext('2d');
+let img = new Image();
 
-function selectShape(shape) {
-  selectedShape = shape;
-  const cards = document.querySelectorAll(".card");
-  cards.forEach(card => card.classList.remove('selected'));
-  event.currentTarget.classList.add('selected');
+document.getElementById('upload').addEventListener('change', function(event) {
+  const file = event.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      img.onload = function() {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        points = [];
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+});
+
+canvas.addEventListener('click', function(event) {
+  const rect = canvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  points.push({ x, y });
+  drawPoints();
+});
+
+function drawPoints() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0);
+  ctx.fillStyle = 'red';
+  ctx.strokeStyle = 'red';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < points.length; i++) {
+    ctx.beginPath();
+    ctx.arc(points[i].x, points[i].y, 5, 0, 2 * Math.PI);
+    ctx.fill();
+    if (i > 0) {
+      ctx.beginPath();
+      ctx.moveTo(points[i - 1].x, points[i - 1].y);
+      ctx.lineTo(points[i].x, points[i].y);
+      ctx.stroke();
+    }
+  }
+  if (points.length > 2) {
+    ctx.beginPath();
+    ctx.moveTo(points[points.length - 1].x, points[points.length - 1].y);
+    ctx.lineTo(points[0].x, points[0].y);
+    ctx.stroke();
+  }
+}
+
+function detectShape() {
+  if (points.length < 3) return '未知形狀';
+  const numPoints = points.length;
+  if (numPoints <= 4) return '方形';
+  if (numPoints <= 6) return '橢圓形';
+  return '圓形';
 }
 
 function calculateMLD() {
@@ -144,44 +147,10 @@ function calculateMLD() {
 
   const mld = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
 
-  document.getElementById('result').innerText = `建議最小鏡片直徑：${mld.toFixed(2)} mm`;
-
-  const file = document.getElementById('upload').files[0];
-  if (file) {
-    const formData = new FormData();
-    formData.append('image', file);
-
-    fetch('/analyze_image', {
-      method: 'POST',
-      body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.horizontal_blue_lines_detected) {
-        const adjustedDiameter = mld + 2; // Adjust based on your analysis logic
-        document.getElementById('result').innerText =
-          `根據圖片分析，建議最小鏡片直徑：${adjustedDiameter.toFixed(2)} mm`;
-      }
-    })
-    .catch(error => {
-      console.error('Error:', error);
-    });
-  }
+  const shape = detectShape();
+  document.getElementById('result').innerText =
+    `辨識形狀：${shape}，建議最小鏡片直徑：${mld.toFixed(2)} mm`;
 }
-
-// 預覽圖片
-document.getElementById('upload').addEventListener('change', function(event) {
-  const file = event.target.files[0];
-  if (file) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      const preview = document.getElementById('preview');
-      preview.src = e.target.result;
-      preview.classList.remove('hidden');
-    };
-    reader.readAsDataURL(file);
-  }
-});
 </script>
 
 </body>
