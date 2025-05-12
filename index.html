@@ -46,12 +46,6 @@
       font-weight: bold;
       color: #007bff;
       text-align: center;
-      white-space: pre-line;
-    }
-    .button-group {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
     }
     @media (max-width: 600px) {
       body {
@@ -59,9 +53,6 @@
       }
       input, button {
         font-size: 16px;
-      }
-      .button-group {
-        flex-direction: column;
       }
     }
   </style>
@@ -94,12 +85,12 @@
   <input type="checkbox" id="useSafetyEdge"> 加入安全邊緣（2mm）
 </label>
 
-<div class="button-group">
-  <label style="flex: 1;">
-    上傳鏡框照片（選擇性）
+<!-- 上傳圖片與重設按鈕 -->
+<div style="display: flex; align-items: center; gap: 10px;">
+  <label style="flex: 1;">上傳鏡框照片（請拍攝右鏡片）
     <input type="file" id="upload" accept="image/*">
   </label>
-  <button onclick="resetCanvas()" style="flex: none; height: fit-content;">重設座標</button>
+  <button onclick="resetCanvas()" style="flex: 0 0 auto;">重設座標</button>
 </div>
 
 <div id="canvasContainer">
@@ -110,11 +101,15 @@
 
 <div id="result"></div>
 
+<!-- 引入 OpenCV.js -->
+<script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
+
 <script>
 let points = [];
 let canvas = document.getElementById('canvas');
 let ctx = canvas.getContext('2d');
 let img = new Image();
+let srcMat = null;
 
 function getNumberValue(id) {
   const val = parseFloat(document.getElementById(id).value);
@@ -134,6 +129,9 @@ document.getElementById('upload').addEventListener('change', function(event) {
         canvas.height = img.height * ratio;
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         points = [];
+        if (typeof cv !== 'undefined') {
+          srcMat = cv.imread(canvas);
+        }
       };
       img.src = e.target.result;
     };
@@ -189,16 +187,6 @@ function detectShape() {
   return '圓形';
 }
 
-function calculateArea() {
-  if (points.length < 3) return null;
-  let area = 0;
-  for (let i = 0; i < points.length; i++) {
-    const j = (i + 1) % points.length;
-    area += (points[i].x * points[j].y - points[j].x * points[i].y);
-  }
-  return Math.abs(area / 2);
-}
-
 function calculateMLD() {
   const lensED = getNumberValue('lensED');
   const bridgeWidth = getNumberValue('bridgeWidth');
@@ -221,14 +209,13 @@ function calculateMLD() {
 
   const mld = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
   const shape = detectShape();
-  const area = calculateArea();
 
-  const resultText = `辨識形狀：${shape}\n建議最小鏡片直徑：${mld.toFixed(2)} mm` +
-    (area !== null ? `\n鏡片輪廓面積：約 ${area.toFixed(2)} px²` : '');
+  let resultText = `辨識形狀：${shape}，建議最小鏡片直徑：${mld.toFixed(2)} mm`;
 
-  document.getElementById('result').innerText = resultText;
-}
-</script>
-
-</body>
-</html>
+  if (typeof cv !== 'undefined' && srcMat) {
+    let gray = new cv.Mat();
+    cv.cvtColor(srcMat, gray, cv.COLOR_RGBA2GRAY, 0);
+    let blurred = new cv.Mat();
+    cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+    let edged = new cv.Mat();
+    cv.Canny(blurred, edged, 75
