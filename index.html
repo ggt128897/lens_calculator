@@ -46,6 +46,12 @@
       font-weight: bold;
       color: #007bff;
       text-align: center;
+      white-space: pre-line;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
     }
     @media (max-width: 600px) {
       body {
@@ -53,6 +59,9 @@
       }
       input, button {
         font-size: 16px;
+      }
+      .button-group {
+        flex-direction: column;
       }
     }
   </style>
@@ -85,16 +94,19 @@
   <input type="checkbox" id="useSafetyEdge"> 加入安全邊緣（2mm）
 </label>
 
-<label>上傳鏡框照片（選擇性）
-  <input type="file" id="upload" accept="image/*">
-</label>
+<div class="button-group">
+  <label style="flex: 1;">
+    上傳鏡框照片（選擇性）
+    <input type="file" id="upload" accept="image/*">
+  </label>
+  <button onclick="resetCanvas()" style="flex: none; height: fit-content;">重設座標</button>
+</div>
 
 <div id="canvasContainer">
   <canvas id="canvas" width="500" height="400"></canvas>
 </div>
 
 <button onclick="calculateMLD()">計算最小直徑</button>
-<button onclick="resetCanvas()">重設座標</button>
 
 <div id="result"></div>
 
@@ -177,6 +189,16 @@ function detectShape() {
   return '圓形';
 }
 
+function calculateArea() {
+  if (points.length < 3) return null;
+  let area = 0;
+  for (let i = 0; i < points.length; i++) {
+    const j = (i + 1) % points.length;
+    area += (points[i].x * points[j].y - points[j].x * points[i].y);
+  }
+  return Math.abs(area / 2);
+}
+
 function calculateMLD() {
   const lensED = getNumberValue('lensED');
   const bridgeWidth = getNumberValue('bridgeWidth');
@@ -199,9 +221,12 @@ function calculateMLD() {
 
   const mld = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
   const shape = detectShape();
+  const area = calculateArea();
 
-  document.getElementById('result').innerText =
-    `辨識形狀：${shape}，建議最小鏡片直徑：${mld.toFixed(2)} mm`;
+  const resultText = `辨識形狀：${shape}\n建議最小鏡片直徑：${mld.toFixed(2)} mm` +
+    (area !== null ? `\n鏡片輪廓面積：約 ${area.toFixed(2)} px²` : '');
+
+  document.getElementById('result').innerText = resultText;
 }
 </script>
 
