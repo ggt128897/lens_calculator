@@ -5,23 +5,62 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>鏡片最小直徑計算器</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
-    h1, h2 { text-align: center; }
-    label, input, button { display: block; width: 100%; margin: 10px 0; }
-    input, select { padding: 8px; }
-    button { background: #007bff; color: white; border: none; padding: 10px; cursor: pointer; }
-    button:hover { background: #0056b3; }
-    .hidden { display: none; }
-    #canvasContainer { text-align: center; margin-top: 20px; }
-    #canvas { border: 1px solid #ccc; max-width: 100%; }
-    #result { margin-top: 20px; font-weight: bold; color: #007bff; text-align: center; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f0f0f0;
+    }
+    h1 {
+      text-align: center;
+    }
+    label, input, button {
+      display: block;
+      width: 100%;
+      margin: 10px 0;
+    }
+    input, select {
+      padding: 8px;
+      box-sizing: border-box;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    #canvasContainer {
+      text-align: center;
+      margin-top: 20px;
+    }
+    #canvas {
+      border: 1px solid #ccc;
+      max-width: 100%;
+    }
+    #result {
+      margin-top: 20px;
+      font-weight: bold;
+      color: #007bff;
+      text-align: center;
+    }
+    @media (max-width: 600px) {
+      body {
+        margin: 10px;
+      }
+      input, button {
+        font-size: 16px;
+      }
+    }
   </style>
 </head>
 <body>
 
 <h1>鏡片最小直徑計算器</h1>
 
-<!-- 資料輸入 -->
 <label>鏡片寬度（ED）（mm）
   <input type="number" id="lensED" placeholder="例如：52">
 </label>
@@ -42,12 +81,10 @@
   <input type="number" id="pd" placeholder="例如：64">
 </label>
 
-<!-- 安全邊緣選項 -->
 <label>
   <input type="checkbox" id="useSafetyEdge"> 加入安全邊緣（2mm）
 </label>
 
-<!-- 上傳圖片 -->
 <label>上傳鏡框照片（選擇性）
   <input type="file" id="upload" accept="image/*">
 </label>
@@ -57,8 +94,8 @@
 </div>
 
 <button onclick="calculateMLD()">計算最小直徑</button>
+<button onclick="resetCanvas()">重設座標</button>
 
-<!-- 結果 -->
 <div id="result"></div>
 
 <script>
@@ -67,15 +104,23 @@ let canvas = document.getElementById('canvas');
 let ctx = canvas.getContext('2d');
 let img = new Image();
 
+function getNumberValue(id) {
+  const val = parseFloat(document.getElementById(id).value);
+  return isNaN(val) ? null : val;
+}
+
 document.getElementById('upload').addEventListener('change', function(event) {
   const file = event.target.files[0];
   if (file) {
     const reader = new FileReader();
     reader.onload = function(e) {
       img.onload = function() {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
+        const maxWidth = 500;
+        const maxHeight = 400;
+        let ratio = Math.min(maxWidth / img.width, maxHeight / img.height, 1);
+        canvas.width = img.width * ratio;
+        canvas.height = img.height * ratio;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         points = [];
       };
       img.src = e.target.result;
@@ -94,7 +139,7 @@ canvas.addEventListener('click', function(event) {
 
 function drawPoints() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(img, 0, 0);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
   ctx.fillStyle = 'red';
   ctx.strokeStyle = 'red';
   ctx.lineWidth = 2;
@@ -117,6 +162,13 @@ function drawPoints() {
   }
 }
 
+function resetCanvas() {
+  points = [];
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  document.getElementById('result').innerText = "";
+}
+
 function detectShape() {
   if (points.length < 3) return '未知形狀';
   const numPoints = points.length;
@@ -126,28 +178,28 @@ function detectShape() {
 }
 
 function calculateMLD() {
-  const lensED = parseFloat(document.getElementById('lensED').value);
-  const bridgeWidth = parseFloat(document.getElementById('bridgeWidth').value);
-  const lensHeight = parseFloat(document.getElementById('lensHeight').value);
-  const lensTotalHeightB = parseFloat(document.getElementById('lensTotalHeightB').value);
-  const pd = parseFloat(document.getElementById('pd').value);
+  const lensED = getNumberValue('lensED');
+  const bridgeWidth = getNumberValue('bridgeWidth');
+  const lensHeight = getNumberValue('lensHeight');
+  const lensTotalHeightB = getNumberValue('lensTotalHeightB');
+  const pd = getNumberValue('pd');
   const useSafetyEdge = document.getElementById('useSafetyEdge').checked;
   const safetyEdge = useSafetyEdge ? 2 : 0;
 
-  if ([lensED, bridgeWidth, lensHeight, pd].some(isNaN)) {
+  if ([lensED, bridgeWidth, lensHeight, pd].some(val => val === null)) {
     document.getElementById('result').innerText = "請輸入完整數據！";
     return;
   }
 
   const gc = (lensED + bridgeWidth) / 2;
   const decentration = Math.abs((pd / 2) - gc);
-  const verticalAdjustment = !isNaN(lensTotalHeightB)
+  const verticalAdjustment = lensTotalHeightB != null
     ? lensTotalHeightB * 0.1
     : lensHeight * 0.1;
 
   const mld = 2 * decentration + lensED + verticalAdjustment + safetyEdge;
-
   const shape = detectShape();
+
   document.getElementById('result').innerText =
     `辨識形狀：${shape}，建議最小鏡片直徑：${mld.toFixed(2)} mm`;
 }
